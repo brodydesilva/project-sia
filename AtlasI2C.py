@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Sep 18 14:38:46 2018
-
+Modified version of Atlas Scientific's AtlasI2C class and i2c.py raspberry pi example script
 @author: 1brod
 """
 
