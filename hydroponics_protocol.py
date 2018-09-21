@@ -11,9 +11,8 @@ from AtlasI2C import AtlasI2C
 import sys
 import datetime
 import RPi.GPIO as GPIO
-
-# initialization, better in main script
-GPIO.setmode(GPIO.BOARD)
+import os
+from pathlib import Path
 
 class duration():
     """A period of time defined by a beginning and ending time either on the same or subsequent day."""
@@ -76,7 +75,7 @@ class probe():
         except AssertionError:
             msg='Sensor ID must be a string.'
             raise TypeError(msg)
-        self.sid=sid
+        self.pid=pid # probe id
         
         try:
             assert isinstance(address, int)
@@ -107,29 +106,29 @@ class probe():
         self.freq=freq
             
     def poll(self):
+        """Poll for information from the AtlasI2C communications bus."""
         assert isinstance(self.freq, float) or isinstance(self.freq, int)
         # check for polling time being too short, change it to the minimum timeout if too short
         if self.freq < self.bus.long_timeout:
             print("Polling time is shorter than timeout, setting polling time to %0.2f" % self.bus.long_timeout)
             self.freq = self.bus.long_timeout
-        
         cmd='poll' + str(self.freq)
-        
         self.coms.set_i2c_address(self.address)
-        
         reads=[] # can be averaged before storing data point
         for r in range(reps):
-            reads[r]=tuple(self.coms.query(cmd), datetime.datetime.now())
-            
+            reads[r]=(self.coms.query(cmd), datetime.datetime.now()) # list time received data too
         return reads
         
-def print_to_file(path_to_file, sensor, data):
-    pass
-# need to remake the AtlasI2C class to be just a communication portal
-# each sensor will use the one portal to access info about themselves
-# unique via ID
+def print_to_file(path_to_file, probe, data, read_id):
+    """Print information from the sensor to file."""
+    # Sensor 3 |\t| Reading ID Num |\t| Data,data,data\n
+    # Sensor 1 |\t| Reading ID Num |\t| Data,data,data\n
+    delim=['\t', ',']
+    with open(path_to_file, 'a') as fid:
+        fid.write(probe.pid + delim[0] + str(read_id) + delim[0] + ''.join(data, delim[1]) + '\n')
+    return 1
 
-# data can be stored in a dictionary by address
+# data can be stored in a dictionary by address or id
 # store the call # for syncing individual data points for each sensor
 
 class lights(switch):
@@ -176,12 +175,31 @@ def export_info():
     pass
 
 def main():
+    # initialization of the GPIO pins
+    GPIO.setmode(GPIO.BOARD)
+    home = str(Path.home())
+    output_path= os.path.join(home, 'Google Drive', 'Project SIA', 'Code',  'probe_output.txt')
+    
+    atlas=AtlasI2C() # create communications bus
+    
+    # register probes
+    poll_time=2
+    freq=10
+    
+    do=probe('do', 97, 1, atlas, poll_time)
+    orp=probe('orp', 98, 1, atlas, poll_time)
+    ph=probe('ph', 99, 1, atlas, poll_time)
+    ec=probe('ec', 100, 1, atlas, poll_time)
+    rtd=probe('rtd', 102, 1, atlas, poll_time)
+    co2=probe('co2', 105, 1, atlas, poll_time)
+    
+    # pH, ec, do, orp, co2 (co2 needs to wait 10 minutes upon startup)
+    
+    
     while True:
-        
+        pass
         
 
 if __name__ == "__main__":
     # execute only if run as a script
-    
-    # pH, ec, do, orp, co2 (co2 needs to wait 10 minutes upon startup)
     main()
