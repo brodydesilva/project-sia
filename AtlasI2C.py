@@ -42,15 +42,16 @@ class AtlasI2C:
 	def write(self, cmd):
 		# appends the null character and sends the string over I2C
 		cmd += "\00"
+       cmd = bytearray(cmd, 'utf-8')
 		self.file_write.write(cmd)
 
 	def read(self, num_of_bytes=31):
 		# reads a specified number of bytes from I2C, then parses and displays the result
 		res = self.file_read.read(num_of_bytes)         # read from the board
-		response = filter(lambda x: x != '\x00', res)     # remove the null characters to get the response
-		if ord(response[0]) == 1:             # if the response isn't an error
+		response = list(filter(lambda x: x != '\x00', res))     # remove the null characters to get the response
+		if response[0] == 1:             # if the response isn't an error
 			# change MSB to 0 for all received characters except the first and get a list of characters
-			char_list = map(lambda x: chr(ord(x) & ~0x80), list(response[1:]))
+			char_list = map(lambda x: chr(x & ~0x80), list(response[1:]))
 			# NOTE: having to change the MSB to 0 is a glitch in the raspberry pi, and you shouldn't have to do this!
 			return ''.join(char_list)     # convert the char list to a string and returns it
 		else:
