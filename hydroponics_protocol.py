@@ -111,9 +111,10 @@ class probe():
         """Poll for information from the AtlasI2C communications bus."""
         assert isinstance(self.freq, float) or isinstance(self.freq, int)
         # check for polling time being too short, change it to the minimum timeout if too short
-        if self.freq < self.bus.long_timeout:
-            print("Polling time is shorter than timeout, setting polling time to %0.2f" % self.bus.long_timeout)
-            self.freq = self.bus.long_timeout        
+        if self.freq < self.coms.long_timeout:
+            print("Polling time is shorter than timeout, setting polling time to %0.2f" % self.coms.long_timeout)
+            self.freq = self.coms.long_timeout
+        cmd='poll' + str(self.freq)
         self.coms.set_i2c_address(self.address)
         self.reads.append((self.coms.query("R"), datetime.datetime.now())) # list time received data too
         read=self.reads[-1] # store in case hits buffer length
