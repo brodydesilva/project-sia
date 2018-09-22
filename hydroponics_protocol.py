@@ -69,9 +69,9 @@ class toggle():
         
 class probe():
     """An Atlas Scientific Probe input device that communicates via I2C."""
-    def __init__(self, sid, address, reps, coms, freq, out):
+    def __init__(self, pid, address, reps, coms, freq, out):
         try:
-            assert isinstance(sid, str)
+            assert isinstance(pid, str)
         except AssertionError:
             msg='Sensor ID must be a string.'
             raise TypeError(msg)
@@ -141,7 +141,7 @@ class lights(switch):
     def __init__(self, start, end, dur, pin):
         super().__init__(pin)
         self.duration=duration(start, end, dur)
-    def check_status(): # perhaps should check GPIO.input(self.pin) too
+    def check_status(self): # perhaps should check GPIO.input(self.pin) too
         """Check status of lights."""
         should_be_flipped=time_in_duration(self.duration.start, self.duration.end)
         if should_be_flipped and not self.flipped:
