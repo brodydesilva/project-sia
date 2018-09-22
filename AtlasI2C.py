@@ -6,7 +6,7 @@ Modified version of Atlas Scientific's AtlasI2C class and i2c.py raspberry pi ex
 """
 
 import io         # used to create file streams
-#import fcntl      # used to access I2C parameters like addresses
+import fcntl      # used to access I2C parameters like addresses
 
 import time       # used for sleep delay and timestamps
 import string     # helps parse strings

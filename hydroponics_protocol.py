@@ -192,15 +192,12 @@ def main():
     poll_time=2
     freq=10
     
-    do=probe('do', 97, freq, atlas, poll_time)
-    orp=probe('orp', 98, freq, atlas, poll_time)
-    ph=probe('ph', 99, freq, atlas, poll_time)
-    ec=probe('ec', 100, freq, atlas, poll_time)
-    rtd=probe('rtd', 102, freq, atlas, poll_time)
-    co2=probe('co2', 105, freq, atlas, poll_time)
-    
-    # pH, ec, do, orp, co2 (co2 needs to wait 10 minutes upon startup)
-    
+    do=probe('do', 97, freq, atlas, poll_time, output_path)
+    orp=probe('orp', 98, freq, atlas, poll_time, output_path)
+    ph=probe('ph', 99, freq, atlas, poll_time, output_path)
+    ec=probe('ec', 100, freq, atlas, poll_time, output_path)
+    rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
+    co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
     while True:
         pass
