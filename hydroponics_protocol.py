@@ -113,10 +113,9 @@ class probe():
         # check for polling time being too short, change it to the minimum timeout if too short
         if self.freq < self.bus.long_timeout:
             print("Polling time is shorter than timeout, setting polling time to %0.2f" % self.bus.long_timeout)
-            self.freq = self.bus.long_timeout
-        cmd='poll' + str(self.freq)
+            self.freq = self.bus.long_timeout        
         self.coms.set_i2c_address(self.address)
-        self.reads.append((self.coms.query(cmd), datetime.datetime.now())) # list time received data too
+        self.reads.append((self.coms.query("R"), datetime.datetime.now())) # list time received data too
         read=self.reads[-1] # store in case hits buffer length
         
         if len(self.reads) == self.reps: # write to file
