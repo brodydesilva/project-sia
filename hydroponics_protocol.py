@@ -204,7 +204,7 @@ def main():
     while True:
         for s in sensors:
             s.poll()
-	print('Successfully polled sensors.\nHibernating.')
+        print('Successfully polled sensors.\nHibernating.')
         sleep(20)
         
 
