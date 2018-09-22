@@ -4,7 +4,7 @@ Created on Tue Sep 18 14:38:46 2018
 Modified version of Atlas Scientific's AtlasI2C class and i2c.py raspberry pi example script
 @author: 1brod
 """
-
+import pdb
 import io         # used to create file streams
 import fcntl      # used to access I2C parameters like addresses
 
@@ -41,21 +41,32 @@ class AtlasI2C:
 
 	def write(self, cmd):
 		# appends the null character and sends the string over I2C
-		cmd += "\00"
-       cmd = bytearray(cmd, 'utf-8')
-		self.file_write.write(cmd)
+		cmd+="\00"
+		cmd=bytes(cmd,'utf-8')
+		try:
+			self.file_write.write(cmd)
+		except OSError:
+			pdb.set_trace()
+			print('OSError on write ' + str(self.current_addr))
+			return
 
 	def read(self, num_of_bytes=31):
 		# reads a specified number of bytes from I2C, then parses and displays the result
-		res = self.file_read.read(num_of_bytes)         # read from the board
-		response = list(filter(lambda x: x != '\x00', res))     # remove the null characters to get the response
+		try:
+                    res = self.file_read.read(num_of_bytes)         # read from the board
+		except IOError:
+                    pdb.set_trace()
+                    print('IOError on read ' + str(self.current_addr))
+                    return -1 # uncertain where issue is coming from
+		response = [x for x in res if x != '\x00']     # remove the null characters to get the response
 		if response[0] == 1:             # if the response isn't an error
 			# change MSB to 0 for all received characters except the first and get a list of characters
 			char_list = map(lambda x: chr(x & ~0x80), list(response[1:]))
 			# NOTE: having to change the MSB to 0 is a glitch in the raspberry pi, and you shouldn't have to do this!
+			print(''.join(char_list))
 			return ''.join(char_list)     # convert the char list to a string and returns it
 		else:
-			return "Error " + str(ord(response[0]))
+			return "Error " + str(response[0])
 
 	def query(self, string):
 		# write a command to the board, wait the correct timeout, and read the response

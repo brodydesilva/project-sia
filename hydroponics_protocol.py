@@ -12,7 +12,9 @@ import sys
 import datetime
 import RPi.GPIO as GPIO
 import os
+import time
 from pathlib import Path
+import pdb
 
 class duration():
     """A period of time defined by a beginning and ending time either on the same or subsequent day."""
@@ -116,7 +118,8 @@ class probe():
             self.freq = self.coms.long_timeout
         cmd='poll' + str(self.freq)
         self.coms.set_i2c_address(self.address)
-        self.reads.append((self.coms.query("R"), datetime.datetime.now())) # list time received data too
+        self.reads.append((str(self.coms.query("R")), str(datetime.datetime.now()))) # list time received data too
+        time.sleep(self.freq - self.coms.long_timeout)
         read=self.reads[-1] # store in case hits buffer length
         
         if len(self.reads) == self.reps: # write to file
@@ -184,29 +187,30 @@ def main():
     # initialization of the GPIO pins
     GPIO.setmode(GPIO.BOARD)
     home = str(Path.home())
-    output_path = os.path.join(home, 'Google Drive', 'Project SIA', 'Code',  'probe_output.txt')
+    output_path = os.path.join(home, 'Documents',  'probe_output.txt')
     
     atlas=AtlasI2C() # create communications bus
     
     # register probes
-    poll_time=2
-    freq=10
+    poll_time=2.5
+    freq=2
     
     do=probe('do', 97, freq, atlas, poll_time, output_path)
     orp=probe('orp', 98, freq, atlas, poll_time, output_path)
-    ph=probe('ph', 99, freq, atlas, poll_time, output_path)
+    #ph=probe('ph', 99, freq, atlas, poll_time, output_path)
     ec=probe('ec', 100, freq, atlas, poll_time, output_path)
-    rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
+    #rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
     co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
-    sensors=[do, orp, ph, ec, rtd, co2]    
+    #sensors=[do, orp, ph, ec, rtd, co2]    
+    sensors=[do,orp,ec,co2]
 
     while True:
         for s in sensors:
             s.poll()
         print('Successfully polled sensors.\nHibernating.')
-        sleep(20)
-        
+        #time.sleep(20)
+        pdb.set_trace()
 
 if __name__ == "__main__":
     # execute only if run as a script
