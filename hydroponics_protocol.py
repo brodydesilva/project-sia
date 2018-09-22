@@ -199,8 +199,13 @@ def main():
     rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
     co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
+    sensors=[do, orp, ph, ec, rtd, co2]    
+
     while True:
-        pass
+        for s in sensors:
+            s.poll()
+	print('Successfully polled sensors.\nHibernating.')
+        sleep(20)
         
 
 if __name__ == "__main__":
