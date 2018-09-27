@@ -60,11 +60,15 @@ class AtlasI2C:
                     return -1 # uncertain where issue is coming from
 		response = [x for x in res if x != '\x00']     # remove the null characters to get the response
 		if response[0] == 1:             # if the response isn't an error
-			# change MSB to 0 for all received characters except the first and get a list of characters
-			char_list = map(lambda x: chr(x & ~0x80), list(response[1:]))
-			# NOTE: having to change the MSB to 0 is a glitch in the raspberry pi, and you shouldn't have to do this!
-			print(''.join(char_list))
-			return ''.join(char_list)     # convert the char list to a string and returns it
+                        # change MSB to 0 for all received characters except the first and get a list of characters
+                        try:
+                            data = float(''.join([chr(x) for x in response[1:] if x != 0]))
+                        except ValueError:
+                            print('ValueError: ' + str(response))
+                            return str(response)
+                        # NOTE: having to change the MSB to 0 is a glitch in the raspberry pi, and you shouldn't have to do this!
+                        print(data)
+                        return data     # convert the char list to a string and returns it
 		else:
 			return "Error " + str(response[0])
 

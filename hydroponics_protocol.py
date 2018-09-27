@@ -121,7 +121,6 @@ class probe():
         self.reads.append((str(self.coms.query("R")), str(datetime.datetime.now()))) # list time received data too
         time.sleep(self.freq - self.coms.long_timeout)
         read=self.reads[-1] # store in case hits buffer length
-        
         if len(self.reads) == self.reps: # write to file
             for x in range(0, self.reps):
                 print_to_file(self.out, self.pid, self.reads[x])
@@ -192,25 +191,24 @@ def main():
     atlas=AtlasI2C() # create communications bus
     
     # register probes
-    poll_time=2.5
-    freq=2
+    poll_time=2
+    freq=1
     
     do=probe('do', 97, freq, atlas, poll_time, output_path)
     orp=probe('orp', 98, freq, atlas, poll_time, output_path)
-    #ph=probe('ph', 99, freq, atlas, poll_time, output_path)
+    ph=probe('ph', 99, freq, atlas, poll_time, output_path)
     ec=probe('ec', 100, freq, atlas, poll_time, output_path)
-    #rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
+    rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
     co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
-    #sensors=[do, orp, ph, ec, rtd, co2]    
-    sensors=[do,orp,ec,co2]
+    sensors=[do, orp, ph, rtd, ec, co2]    
 
     while True:
         for s in sensors:
             s.poll()
         print('Successfully polled sensors.\nHibernating.')
         #time.sleep(20)
-        pdb.set_trace()
+        #pdb.set_trace()
 
 if __name__ == "__main__":
     # execute only if run as a script
