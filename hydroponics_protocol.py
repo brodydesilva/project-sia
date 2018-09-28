@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Fri Sep  7 18:11:19 2018
@@ -32,17 +33,16 @@ class duration():
         self.start=start
         self.end=end
         self.duration=duration
+        if start < end: # cycle is on the same day
+            self.hours = list(range(start, end))
+        elif start > end: # cycle ends on the next day
+            self.hours = list(range(start, 24)) + list(range(0,end))
 
-def time_in_duration(start, end):
+
+def time_in_duration(hours):
     """Check if the current time is during the on duration."""
     today=datetime.datetime.now()
-    if start < end: # cycle is on the same day
-        end=datetime.datetime(today.year, today.month, today.day, end)
-    elif start > end: # cycle ends on the next day
-        tomorrow=today+datetime.timedelta(1)
-        end=datetime.datetime(tomorrow.year, tomorrow.month, tomorrow.day, end)
-    start=datetime.datetime(today.year, today.month, today.day, start)    
-    if today >= start and today < end:
+    if today.hour in hours:
         return True
     else:
         return False
@@ -142,7 +142,7 @@ class lights(switch):
         self.duration=duration(start, end, dur)
     def check_status(self): # perhaps should check GPIO.input(self.pin) too
         """Check status of lights. Return True if should flip, else False."""
-        should_be_flipped=time_in_duration(self.duration.start, self.duration.end)
+        should_be_flipped=time_in_duration(self.duration.hours)
         if should_be_flipped and not self.value:
             # Lights should be on, but pin is not showing being flipped.
             return True
@@ -212,7 +212,6 @@ def main():
             for s in sensors:
                 s.poll()
             for light in lighting:
-                pdb.set_trace()
                 if light.check_status(): # if True, flip switch
                     light.flip_light()
             print('Successfully polled sensors.\nHibernating.')
