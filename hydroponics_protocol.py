@@ -10,7 +10,7 @@ Created on Fri Sep  7 18:11:19 2018
 from AtlasI2C import AtlasI2C
 import sys
 import datetime
-import RPi.GPIO as GPIO
+import gpiozero
 import os
 import time
 from pathlib import Path
@@ -47,18 +47,15 @@ def time_in_duration(start, end):
     else:
         return False
 
-class switch():
+class switch(gpiozero.DigitalOutputDevice):
     """Any output device that has a pin number."""
     def __init__(self, pin):
-        self.pin=pin
+        super().__init__(pin)
         self.flipped=False # default state is not flipped = off
-        GPIO.setup(self.pin, GPIO.OUT) # check if line stays high or just activates once
     def activate(self):
-        GPIO.output(self.pin, GPIO.HIGH) # check what this equals, if  = 1 or 0, for success or failure, then set self.flipped
-        self.flipped=True
+        self.on()
     def deactivate(self):
-        GPIO.output(self.pin, GPIO.LOW)
-        self.flipped=False
+        self.on()
         
 class toggle():
     """Any input device that has a pin number."""
@@ -144,18 +141,23 @@ class lights(switch):
         super().__init__(pin)
         self.duration=duration(start, end, dur)
     def check_status(self): # perhaps should check GPIO.input(self.pin) too
-        """Check status of lights."""
+        """Check status of lights. Return True if should flip, else False."""
         should_be_flipped=time_in_duration(self.duration.start, self.duration.end)
-        if should_be_flipped and not self.flipped:
-            print('Something is wrong... Lights should be on, but pin is not showing being flipped.')
-            return False
-        elif not should_be_flipped and self.flipped:
-            print('Something is wrong... Lights should not be on, but pin is showing being flipped.')
+        if should_be_flipped and not self.value:
+            # Lights should be on, but pin is not showing being flipped.
             return True
-        elif should_be_flipped and self.flipped:
+        elif not should_be_flipped and self.value:
+            # Lights should not be on, but pin is showing being flipped.
             return True
-        elif not should_be_flipped and not self.flipped:
+        elif should_be_flipped and self.value:
             return False
+        elif not should_be_flipped and not self.value:
+            return False
+    def flip_light(self):
+        if self.flipped:
+            self.deactivate()
+        elif not self.flipped:
+            self.activate()
 
 class pump(switch):
     def __init__():
@@ -183,8 +185,6 @@ def export_info():
     pass
 
 def main():
-    # initialization of the GPIO pins
-    GPIO.setmode(GPIO.BOARD)
     home = str(Path.home())
     output_path = os.path.join(home, 'Documents',  'probe_output.txt')
     
@@ -194,6 +194,11 @@ def main():
     poll_time=2
     freq=1
     
+    lights_long=lights(18, 14, 20, 17)
+    lights_med=lights(18, 12, 18, 27)
+    lights_short=lights(18, 10, 16, 22)
+    lighting=[lights_long, lights_med, lights_short]
+
     do=probe('do', 97, freq, atlas, poll_time, output_path)
     orp=probe('orp', 98, freq, atlas, poll_time, output_path)
     ph=probe('ph', 99, freq, atlas, poll_time, output_path)
@@ -202,13 +207,19 @@ def main():
     co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
     sensors=[do, orp, ph, rtd, ec, co2]    
-
-    while True:
-        for s in sensors:
-            s.poll()
-        print('Successfully polled sensors.\nHibernating.')
-        #time.sleep(20)
-        #pdb.set_trace()
+    try:
+        while True:
+            for s in sensors:
+                s.poll()
+            for light in lighting:
+                pdb.set_trace()
+                if light.check_status(): # if True, flip switch
+                    light.flip_light()
+            print('Successfully polled sensors.\nHibernating.')
+    except Exception as e:
+        print('Something went wrong!')
+        print(datetime.datetime.now())
+        print(str(e))
 
 if __name__ == "__main__":
     # execute only if run as a script
