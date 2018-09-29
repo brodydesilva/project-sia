@@ -47,16 +47,6 @@ def time_in_duration(hours):
     else:
         return False
 
-class switch(gpiozero.DigitalOutputDevice):
-    """Any output device that has a pin number."""
-    def __init__(self, pin):
-        super().__init__(pin)
-        self.flipped=False # default state is not flipped = off
-    def activate(self):
-        self.on()
-    def deactivate(self):
-        self.on()
-        
 class toggle():
     """Any input device that has a pin number."""
     def __init__(self, pin):
@@ -136,7 +126,7 @@ def print_to_file(path_to_file, pid, data):
 # data can be stored in a dictionary by address or id
 # store the call # for syncing individual data points for each sensor
 
-class lights(switch):
+class lights(gpiozero.DigitalOutputDevice):
     def __init__(self, start, end, dur, pin):
         super().__init__(pin)
         self.duration=duration(start, end, dur)
@@ -154,35 +144,10 @@ class lights(switch):
         elif not should_be_flipped and not self.value:
             return False
     def flip_light(self):
-        if self.flipped:
-            self.deactivate()
-        elif not self.flipped:
-            self.activate()
-
-class pump(switch):
-    def __init__():
-        pass
-
-class nutrient_pump(pump):
-    def __init__():
-        super.__init__()
-
-class bilge_pump(pump):
-    def __init__():
-        super.__init__()
-
-class stir_pump(pump):
-    def __init__():
-        super.__init__()
-
-class water_level(toggle):
-    def __init__():
-        super.__init__()
-
-def export_info():
-    # inputs
-    # outputs
-    pass
+        if self.value:
+            self.off()
+        elif not self.value:
+            self.on()
 
 def main():
     home = str(Path.home())
