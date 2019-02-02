@@ -15,7 +15,6 @@ import gpiozero
 import os
 import time
 from pathlib import Path
-import pdb
 
 class duration():
     """A period of time defined by a beginning and ending time either on the same or subsequent day."""
@@ -37,7 +36,6 @@ class duration():
             self.hours = list(range(start, end))
         elif start > end: # cycle ends on the next day
             self.hours = list(range(start, 24)) + list(range(0,end))
-
 
 def time_in_duration(hours):
     """Check if the current time is during the on duration."""
@@ -149,6 +147,28 @@ class lights(gpiozero.DigitalOutputDevice):
         elif not self.value:
             self.on()
 
+class pumps(gpiozero.DigitalOutputDevice):
+    def __init__(self, dur, pin):
+        self.pin=pin
+        self.watered_this_hour=False
+        self.hour=datetime.datetime.now().hour
+    def check_status(self):
+        today=datetime.datetime.now()
+        if not self.value: # not turned on
+            if today.hour == self.hour: # not new hour
+                if self.watered_this_hour:
+                    pass
+                else:
+                    self.open_the_floodgates()
+            else:
+                self.hour=today.hour # update hour
+                self.open_the_floodgates()
+    def open_the_floodgates(self):
+        self.on()
+        sleep(20)
+        self.off()
+        self.watered_this_hour=True
+
 def main():
     home = str(Path.home())
     output_path = os.path.join(home, 'Documents',  'probe_output.txt')
@@ -159,6 +179,8 @@ def main():
     poll_time=2
     freq=1
     
+    reservoir_pump=pumps(20, 5) # digital pin 5
+
     lights_long=lights(18, 14, 20, 17)
     lights_med=lights(18, 12, 18, 27)
     lights_short=lights(18, 10, 16, 22)
@@ -171,19 +193,21 @@ def main():
     rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
     co2=probe('co2', 105, freq, atlas, poll_time, output_path)
     
-    sensors=[do, orp, ph, rtd, ec, co2]    
-    try:
-        while True:
-            for s in sensors:
-                s.poll()
-            for light in lighting:
-                if light.check_status(): # if True, flip switch
-                    light.flip_light()
-            print('Successfully polled sensors.\nHibernating.')
-    except Exception as e:
-        print('Something went wrong!')
-        print(datetime.datetime.now())
-        print(str(e))
+    sensors=[do, orp, ph, rtd, ec, co2]
+    while True:
+        try:
+            while True:
+                for s in sensors:
+                    s.poll()
+                for light in lighting:
+                    if light.check_status(): # if True, flip switch
+                        light.flip_light()
+                if reservoir_pump.check_status():
+                    reservoir_pump.open_the_floodgates()
+                print('Successfully polled sensors.\nHibernating.')
+        except Exception as e:
+            print('Something went wrong!')
+            print(datetime.datetime.now())
 
 if __name__ == "__main__":
     # execute only if run as a script

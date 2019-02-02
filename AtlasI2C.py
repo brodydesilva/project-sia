@@ -4,7 +4,7 @@ Created on Tue Sep 18 14:38:46 2018
 Modified version of Atlas Scientific's AtlasI2C class and i2c.py raspberry pi example script
 @author: 1brod
 """
-import pdb
+#import pdb
 import io         # used to create file streams
 import fcntl      # used to access I2C parameters like addresses
 
@@ -46,7 +46,7 @@ class AtlasI2C:
 		try:
 			self.file_write.write(cmd)
 		except OSError:
-			pdb.set_trace()
+			#pdb.set_trace()
 			print('OSError on write ' + str(self.current_addr))
 			return
 
@@ -55,7 +55,7 @@ class AtlasI2C:
 		try:
                     res = self.file_read.read(num_of_bytes)         # read from the board
 		except IOError:
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     print('IOError on read ' + str(self.current_addr))
                     return -1 # uncertain where issue is coming from
 		response = [x for x in res if x != '\x00']     # remove the null characters to get the response
