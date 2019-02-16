@@ -151,8 +151,9 @@ class pumps(gpiozero.DigitalOutputDevice):
     def __init__(self, dur, pin):
         super().__init__(pin)
         self.watered_this_hour=False
+        self.watered_this_half=False
         self.hour=datetime.datetime.now().hour
-    def check_status(self):
+    def check_status_hourly(self):
         today=datetime.datetime.now()
         if not self.value: # not turned on
             if today.hour == self.hour: # not new hour
@@ -163,6 +164,19 @@ class pumps(gpiozero.DigitalOutputDevice):
             else:
                 self.hour=today.hour # update hour
                 return True
+        return False
+    def check_status_half(self):
+        today=datetime.datetime.now()
+        if not self.value: # not turned on
+            if today.minute >= 30 and today.minute <= 39: # in timeframe
+                if self.watered_this_half:
+                    return False
+                else:
+                    self.watered_this_half=True
+                    return True
+            else:
+                self.watered_this_half=False
+                return False
         return False
     def open_the_floodgates(self):
         self.on()
@@ -180,7 +194,7 @@ def main():
     poll_time=2
     freq=1
     
-    reservoir_pump=pumps(20, 5) # digital pin 5
+    reservoir_pump=pumps(60, 5) # digital pin 5
 
     lights_long=lights(18, 14, 20, 17)
     lights_med=lights(18, 12, 18, 27)
@@ -203,7 +217,9 @@ def main():
                 for light in lighting:
                     if light.check_status(): # if True, flip switch
                         light.flip_light()
-                if reservoir_pump.check_status():
+                if reservoir_pump.check_status_hourly():
+                    reservoir_pump.open_the_floodgates()
+                if reservoir_pump.check_status_half():
                     reservoir_pump.open_the_floodgates()
                 print('Successfully polled sensors.\nHibernating.')
         except Exception as e:
