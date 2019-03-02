@@ -188,7 +188,8 @@ class pumps(gpiozero.DigitalOutputDevice):
 def main():
     home = str(Path.home())
     output_path = os.path.join(home, 'Documents',  'probe_output.txt')
-    
+    log_file= os.path.join(home, 'Documents', 'log_file.txt')
+
     atlas=AtlasI2C() # create communications bus
     
     # register probes
@@ -224,8 +225,8 @@ def main():
                     reservoir_pump.open_the_floodgates()
                 print('Successfully polled sensors.\nHibernating.')
         except Exception as e:
-            print('Something went wrong!')
-            print(datetime.datetime.now())
+            with open (log_file, 'w') as log:
+                log.write(e.message + '\t' + datetime.datetime.now() + '\n')
 
 if __name__ == "__main__":
     # execute only if run as a script
