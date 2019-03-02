@@ -161,6 +161,7 @@ class pumps(gpiozero.DigitalOutputDevice):
                 if self.watered_this_hour:
                     pass
                 else:
+                    self.watered_this_hour=True
                     return True
             else:
                 self.hour=today.hour # update hour
@@ -182,7 +183,7 @@ class pumps(gpiozero.DigitalOutputDevice):
         return False
     def open_the_floodgates(self):
         self.on()
-        time.sleep(self.dur)
+        time.sleep(self.duration)
         self.off()
 
 def main():
