@@ -150,6 +150,7 @@ class lights(gpiozero.DigitalOutputDevice):
 class pumps(gpiozero.DigitalOutputDevice):
     def __init__(self, dur, pin):
         super().__init__(pin)
+        self.duration=dur
         self.watered_this_hour=False
         self.watered_this_half=False
         self.hour=datetime.datetime.now().hour
@@ -163,6 +164,7 @@ class pumps(gpiozero.DigitalOutputDevice):
                     return True
             else:
                 self.hour=today.hour # update hour
+                self.watered_this_hour=True
                 return True
         return False
     def check_status_half(self):
@@ -172,7 +174,7 @@ class pumps(gpiozero.DigitalOutputDevice):
                 if self.watered_this_half:
                     return False
                 else:
-                    self.watered_this_half=True
+                    self.watered_this_half=True # should go after the watering, but if fails prefer too little
                     return True
             else:
                 self.watered_this_half=False
@@ -180,9 +182,8 @@ class pumps(gpiozero.DigitalOutputDevice):
         return False
     def open_the_floodgates(self):
         self.on()
-        time.sleep(20)
+        time.sleep(self.dur)
         self.off()
-        self.watered_this_hour=True
 
 def main():
     home = str(Path.home())
