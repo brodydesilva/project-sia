@@ -159,7 +159,7 @@ class pumps(gpiozero.DigitalOutputDevice):
         if not self.value: # not turned on
             if today.hour == self.hour: # not new hour
                 if self.watered_this_hour:
-                    pass
+                    return False
                 else:
                     self.watered_this_hour=True
                     return True
@@ -197,7 +197,7 @@ def main():
     poll_time=2
     freq=1
     
-    reservoir_pump=pumps(60, 5) # digital pin 5
+    reservoir_pump=pumps(30, 5) # digital pin 5
 
     lights_long=lights(18, 14, 20, 17)
     lights_med=lights(18, 12, 18, 27)
