@@ -14,9 +14,12 @@ import datetime
 import gpiozero
 import os
 import time
+import boto3
+import csv
 from pathlib import Path
+from picamera import PiCamera
 
-class duration():
+class Duration():
     """A period of time defined by a beginning and ending time either on the same or subsequent day."""
     def __init__(self, start, end, duration):
         today=datetime.datetime.now()
@@ -44,19 +47,10 @@ def time_in_duration(hours):
         return True
     else:
         return False
-
-class toggle():
-    """Any input device that has a pin number."""
-    def __init__(self, pin):
-        self.pin=pin
-        self.flipped=False # default state is not flipped = off
-        GPIO.setup(self.pin, GPIO.IN) # check if line stays high or just activates once
-    def read(self):
-        return GPIO.input(self.pin)
         
-class probe():
+class Probe():
     """An Atlas Scientific Probe input device that communicates via I2C."""
-    def __init__(self, pid, address, reps, coms, freq, out):
+    def __init__(self, pid, address, coms, freq, aws_end):
         try:
             assert isinstance(pid, str)
         except AssertionError:
@@ -72,13 +66,6 @@ class probe():
         self.address=address
         
         try:
-            assert isinstance(reps, int)
-        except AssertionError:
-            msg='Repititions must be an integer.'
-            raise TypeError(msg)
-        self.reps=reps
-        
-        try:
             assert isinstance(coms, AtlasI2C)
         except AssertionError:
             msg='Communication bus must be an AtlasI2C instance.'
@@ -90,9 +77,18 @@ class probe():
         except AssertionError:
             msg='Frequency must be a floating point number or integer.'
             raise TypeError(msg)
+        
+        try:
+            assert isinstance(aws_end, str)
+            if aws_end != 'dynamodb' and aws_end != 's3':
+                msg='AWS Endpoint must either be \'dynamodb\' or \'s3\'.'
+                raise TypeError(msg)
+        except AssertionError:
+            msg='AWS Endpoint must be a string.'
+            raise TypeError(msg)
+        
         self.freq=freq
         self.reads=[]
-        self.out=out
             
     def poll(self):
         """Poll for information from the AtlasI2C communications bus."""
@@ -101,15 +97,9 @@ class probe():
         if self.freq < self.coms.long_timeout:
             print("Polling time is shorter than timeout, setting polling time to %0.2f" % self.coms.long_timeout)
             self.freq = self.coms.long_timeout
-        cmd='poll' + str(self.freq)
         self.coms.set_i2c_address(self.address)
-        self.reads.append((str(self.coms.query("R")), str(datetime.datetime.now()))) # list time received data too
+        read=(self.pid, str(self.coms.query("R")), str(datetime.datetime.now()), self.aws_end) # sensor_id, value, timestamp, aws_endpoint
         time.sleep(self.freq - self.coms.long_timeout)
-        read=self.reads[-1] # store in case hits buffer length
-        if len(self.reads) == self.reps: # write to file
-            for x in range(0, self.reps):
-                print_to_file(self.out, self.pid, self.reads[x])
-            self.reads = [] # reset the buffer
         return read
         
 def print_to_file(path_to_file, pid, data):
@@ -124,10 +114,10 @@ def print_to_file(path_to_file, pid, data):
 # data can be stored in a dictionary by address or id
 # store the call # for syncing individual data points for each sensor
 
-class lights(gpiozero.DigitalOutputDevice):
+class Lights(gpiozero.DigitalOutputDevice):
     def __init__(self, start, end, dur, pin):
         super().__init__(pin)
-        self.duration=duration(start, end, dur)
+        self.duration=Duration(start, end, dur)
     def check_status(self): # perhaps should check GPIO.input(self.pin) too
         """Check status of lights. Return True if should flip, else False."""
         should_be_flipped=time_in_duration(self.duration.hours)
@@ -144,10 +134,12 @@ class lights(gpiozero.DigitalOutputDevice):
     def flip_light(self):
         if self.value:
             self.off()
+            # insert web ping here
         elif not self.value:
             self.on()
+            # insert web ping here
 
-class pumps(gpiozero.DigitalOutputDevice):
+class Pumps(gpiozero.DigitalOutputDevice):
     def __init__(self, dur, pin):
         super().__init__(pin)
         self.duration=dur
@@ -183,40 +175,144 @@ class pumps(gpiozero.DigitalOutputDevice):
         return False
     def open_the_floodgates(self):
         self.on()
+        # insert webhook ping here
         time.sleep(self.duration)
+        # insert webhook ping here
         self.off()
+
+class Queue(length=1, duration=datetime.datetime.timedelta(seconds=120)):
+    def __init__(self, length, duration):
+        self.length=length
+        self.duration=datetime.timedelta(seconds=duration) # in seconds
+        self.data=[]
+        self.last_published=datetime.datetime.now() # for now
+        
+    def isReady(self): # if length is reached or duration since last post, True
+        if len(self.data) == self.length: # length
+            return True
+        elif datetime.datetime.now() - self.last >= self.duration: # duration reached
+            return True
+        else:
+            return False # not ready to be sent yet
+        
+    def flush():
+        self.last_published=datetime.datetime.now()
+        self.data=[]
+        
+class Camera():
+    def __init__(self, elapse, iso, shutter_speed, awb_gains, res, framerate, aws_end):
+        self.camera=PiCamera(resolution=res, framerate=framerate)
+        self.camera.iso=iso
+        self.camera.shutter_speed = self.camera.shutter_speed
+        self.camera.exposure_mode = 'off'
+        self.camera.awb_mode = 'off'
+        self.camera.awb_gains = awb_gains
+        self.aws_end=aws_end
+        self.elapse=elapse
+
+def read_in_aws_keys(path_to_keys):
+    with open(path_to_keys, 'r') as csvfile:
+        reader=csv.DictReader(csvfile)
+        key_info=[]
+        for row in reader:
+            key_info.append(row)
+            
+    MY_ACCESS_KEY_ID=key_info[0]['Access key ID']
+    MY_SECRET_ACCESS_KEY=key_info[0]['Secret access key']
+    MY_REGION_ID=key_info[0]['Region ID']
+    
+    return {'id': MY_ACCESS_KEY_ID, 'secret': MY_SECRET_ACCESS_KEY, 'region': MY_REGION_ID}
+
+def open_s3_resource(path_to_keys, bucket_name):
+    keys=read_in_aws_keys(path_to_keys)
+    aws_access_key_id=keys['id']
+    aws_secret_access_key=keys['secret']
+    region_name=keys['region']
+    s3 = boto3.resource('s3',
+                          aws_access_key_id = aws_access_key_id,
+                          aws_secret_access_key = aws_secret_access_key,
+                          region_name = region_name
+                          )
+    bucket = s3.Bucket(bucket_name)
+    return s3,bucket
+
+def open_dynamodb_resource(path_to_keys, db_name, table_name):
+    keys=read_in_aws_keys(path_to_keys)
+    aws_access_key_id=keys['id']
+    aws_secret_access_key=keys['secret']
+    region_name=keys['region']
+    dynamodb = boto3.resource('dynamodb',
+                              aws_access_key_id = aws_access_key_id,
+                              aws_secret_access_key = aws_secret_access_key,
+                              region_name = region_name
+                              )
+    table=dynamodb.Table(table_name)
+    return dynamodb,table
+
+def publish_to_aws(queue, path_to_keys, bucket_name, db_name):
+    # NEED TO CONSIDER POWER REQUIREMENTS FOR BATTERY OPERATION + SCHEDULING
+    # publishes a queue to AWS
+    # queue data holds its own endpoint information, with the environment holding the other data
+    
+    # check which resource we need - ADD IN LATER
+    # needed_resource=set([q.aws_end for q in queue]))
+    
+    s3, bucket=open_s3_resource(path_to_keys, bucket_name)
+    db, table=open_dynamodb_resource(path_to_keys, db_name)
+    for q in queue:
+        if q['aws_end'] == 'dynamodb':
+            q.pop('aws_end', None)
+            with table.batch_writer() as batch:
+                batch.put_item(Item=q)
+        elif q['aws_end'] == 's3':
+            q.pop('aws_end', None)
+            bucket.upload_file(q['image'], q['key']) # key is probably the timestamp
+    return 1
 
 def main():
     home = str(Path.home())
     output_path = os.path.join(home, 'Documents',  'probe_output.txt')
     log_file= os.path.join(home, 'Documents', 'log_file.txt')
-
+    
+    # AWS Setup and Credentials
+    path_to_keys=[]
+    bucket_name='project-sia'
+    db_name='project-sia'
+    
     atlas=AtlasI2C() # create communications bus
     
     # register probes
     poll_time=2
-    freq=1
+    queue_length=1
     
-    reservoir_pump=pumps(30, 5) # digital pin 5
+    reservoir_pump=Pumps(30, 5) # digital pin 5
 
-    lights_long=lights(18, 14, 20, 17)
-    lights_med=lights(18, 12, 18, 27)
-    lights_short=lights(18, 10, 16, 22)
+    lights_long=Lights(18, 14, 20, 17) # NEED TO REMOVE THE BAD DURATION CODE ABOVE
+    lights_med=Lights(18, 12, 18, 27)
+    lights_short=Lights(18, 10, 16, 22)
     lighting=[lights_long, lights_med, lights_short]
 
-    do=probe('do', 97, freq, atlas, poll_time, output_path)
-    orp=probe('orp', 98, freq, atlas, poll_time, output_path)
-    ph=probe('ph', 99, freq, atlas, poll_time, output_path)
-    ec=probe('ec', 100, freq, atlas, poll_time, output_path)
-    rtd=probe('rtd', 102, freq, atlas, poll_time, output_path)
-    co2=probe('co2', 105, freq, atlas, poll_time, output_path)
+    do=Probe('do', 97, atlas, poll_time, 'dynamodb')
+    orp=Probe('orp', 98, atlas, poll_time, 'dynamodb')
+    ph=Probe('ph', 99, atlas, poll_time,'dynamodb')
+    ec=Probe('ec', 100, atlas, poll_time, 'dynamodb')
+    rtd=Probe('rtd', 102, atlas, poll_time, 'dynamodb')
+    co2=Probe('co2', 105, atlas, poll_time, 'dynamodb')
+    camera=Camera(datetime.timedelta(hours=1))
+    queue=Queue(length=queue_length)
     
     sensors=[do, orp, ph, rtd, ec, co2]
     while True:
         try:
             while True:
                 for s in sensors:
-                    s.poll()
+                    a=s.poll()
+                    item = {'sensorID': a[0], 'value': a[1], 'timestamp': a[2], 'aws_end': a[3]}
+                    queue.append(item)
+                    if queue.isReady():
+                        if publish_to_aws(queue, path_to_keys, bucket_name, db_name): # success!
+                            queue.flush()
+                # how to run each camera from one computer?
                 for light in lighting:
                     if light.check_status(): # if True, flip switch
                         light.flip_light()
