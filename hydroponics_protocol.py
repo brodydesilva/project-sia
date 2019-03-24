@@ -19,26 +19,10 @@ import csv
 from pathlib import Path
 from picamera import PiCamera
 
-class Duration():
-    """A period of time defined by a beginning and ending time either on the same or subsequent day."""
-    def __init__(self, start, end, duration):
-        today=datetime.datetime.now()
-        self.start=datetime.datetime(today.year, today.month, today.day, start)
-        if start < end: # cycle is on the same day
-            self.end=datetime.datetime(today.year, today.month, today.day, end)
-        elif start > end: # cycle ends on the next day
-            tomorrow=today+datetime.timedelta(1)
-            self.end=datetime.datetime(tomorrow.year, tomorrow.month, tomorrow.day, end)
-        if (self.end - self.start).seconds/3600 != duration:
-            msg='Duration must equal the duration between the end and start time. Duration = ' + str((self.end-self.start).seconds/3600)
-            raise ValueError(msg)
-        self.start=start
-        self.end=end
-        self.duration=duration
-        if start < end: # cycle is on the same day
-            self.hours = list(range(start, end))
-        elif start > end: # cycle ends on the next day
-            self.hours = list(range(start, 24)) + list(range(0,end))
+def hours_lights_active(start, dur):
+    hours=[i for j in (range(0,24), range(0, 24)) for i in j]
+    active_hours = hours[start : start + dur]
+    return active_hours
 
 def time_in_duration(hours):
     """Check if the current time is during the on duration."""
@@ -102,25 +86,25 @@ class Probe():
         time.sleep(self.freq - self.coms.long_timeout)
         return read
         
-def print_to_file(path_to_file, pid, data):
+def print_to_file(path_to_file, pid, value, timestamp):
     """Print information from the sensor to file."""
-    # Sensor 3\tData\ttimestamp\n
-    # Sensor 1\tData\ttimestamp\n
-    delim=['\t', ',']
+    # Sensor 3\tValue\tTimestamp\n
+    # Sensor 1\tValue\tTimestamp\n
+    delim='\t'
     with open(path_to_file, 'a') as fid:
-        fid.write(pid + delim[0] + delim[0].join(data) + '\n')
+        fid.write(pid + delim + value + delim + timestamp + '\n')
     return
 
 # data can be stored in a dictionary by address or id
 # store the call # for syncing individual data points for each sensor
 
 class Lights(gpiozero.DigitalOutputDevice):
-    def __init__(self, start, end, dur, pin):
+    def __init__(self, start, dur, pin):
         super().__init__(pin)
-        self.duration=Duration(start, end, dur)
+        self.hours=hours_lights_active(start, dur)
     def check_status(self): # perhaps should check GPIO.input(self.pin) too
         """Check status of lights. Return True if should flip, else False."""
-        should_be_flipped=time_in_duration(self.duration.hours)
+        should_be_flipped=time_in_duration(self.hours)
         if should_be_flipped and not self.value:
             # Lights should be on, but pin is not showing being flipped.
             return True
@@ -185,8 +169,8 @@ class Queue(length=1, duration=datetime.datetime.timedelta(seconds=120)):
         self.length=length
         self.duration=datetime.timedelta(seconds=duration) # in seconds
         self.data=[]
-        self.last_published=datetime.datetime.now() # for now
-        
+        self.last_published=datetime.datetime.now() # for now    
+    
     def isReady(self): # if length is reached or duration since last post, True
         if len(self.data) == self.length: # length
             return True
@@ -194,8 +178,8 @@ class Queue(length=1, duration=datetime.datetime.timedelta(seconds=120)):
             return True
         else:
             return False # not ready to be sent yet
-        
-    def flush():
+    
+    def flush(self):
         self.last_published=datetime.datetime.now()
         self.data=[]
         
@@ -275,7 +259,7 @@ def main():
     log_file= os.path.join(home, 'Documents', 'log_file.txt')
     
     # AWS Setup and Credentials
-    path_to_keys=[]
+    path_to_keys=os.path.join(home,'Documents','project-sia_aws_credentials.txt')
     bucket_name='project-sia'
     db_name='project-sia'
     
@@ -306,12 +290,18 @@ def main():
         try:
             while True:
                 for s in sensors:
+                    # messy, would like to fix
                     a=s.poll()
                     item = {'sensorID': a[0], 'value': a[1], 'timestamp': a[2], 'aws_end': a[3]}
                     queue.append(item)
                     if queue.isReady():
-                        if publish_to_aws(queue, path_to_keys, bucket_name, db_name): # success!
+                        for q in queue:
+                            print_to_file(output_path, q['sensorID'], q['value'], q['timestamp'])
+                        if publish_to_aws(queue, path_to_keys, bucket_name, db_name): # if it is a success, then flush it, otherwise
                             queue.flush()
+                        else:
+                            pass # NEED TO INPUT SOMETHING HERE THAT KEEPS TRACK OF HOW MUCH WAS ALREADY PRINTED TO FILE
+                            # OTHERWISE GROWS TOO QUICKLY IF PUBLISH TO AWS FAILS
                 # how to run each camera from one computer?
                 for light in lighting:
                     if light.check_status(): # if True, flip switch
