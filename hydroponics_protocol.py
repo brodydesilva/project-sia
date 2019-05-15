@@ -271,9 +271,9 @@ def main():
     
     reservoir_pump=Pumps(30, 5) # digital pin 5
 
-    lights_long=Lights(18, 14, 20, 17) # NEED TO REMOVE THE BAD DURATION CODE ABOVE
-    lights_med=Lights(18, 12, 18, 27)
-    lights_short=Lights(18, 10, 16, 22)
+    lights_long=Lights(18, 20, 17) # NEED TO REMOVE THE BAD DURATION CODE ABOVE
+    lights_med=Lights(18, 18, 27)
+    lights_short=Lights(18, 16, 22)
     lighting=[lights_long, lights_med, lights_short]
 
     do=Probe('do', 97, atlas, poll_time, 'dynamodb')
